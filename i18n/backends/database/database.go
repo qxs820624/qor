@@ -1,0 +1,57 @@
+/*
+ * @Author: xiaoxu@mgtv.com
+ * @Jira:
+ * @Wiki:
+ * @Date: 2020-03-01 10:23:08
+ * @LastEditors: xiaoxu@mgtv.com
+ * @LastEditTime: 2020-03-01 17:12:44
+ * @Description:
+ * @FilePath: \qor\i18n\backends\database\database.go
+ */
+package database
+
+import (
+	"fmt"
+
+	"github.com/jinzhu/gorm"
+	"github.com/qor/i18n"
+)
+
+// Translation is a struct used to save translations into databae
+type Translation struct {
+	Locale string `sql:"size:12;"`
+	Key    string `sql:"size:512;"`
+	Value  string `sql:"size:4294967295"`
+}
+
+// New new DB backend for I18n
+func New(db *gorm.DB) i18n.Backend {
+	db.AutoMigrate(&Translation{})
+	if err := db.Model(&Translation{}).AddUniqueIndex("idx_translations_key_with_locale", "locale", "key").Error; err != nil {
+		fmt.Printf("Failed to create unique index for translations key & locale, got: %v\n", err.Error())
+	}
+	return &Backend{DB: db}
+}
+
+// Backend DB backend
+type Backend struct {
+	DB *gorm.DB
+}
+
+// LoadTranslations load translations from DB backend
+func (backend *Backend) LoadTranslations() (translations []*i18n.Translation) {
+	backend.DB.Find(&translations)
+	return translations
+}
+
+// SaveTranslation save translation into DB backend
+func (backend *Backend) SaveTranslation(t *i18n.Translation) error {
+	return backend.DB.Where(Translation{Key: t.Key, Locale: t.Locale}).
+		Assign(Translation{Value: t.Value}).
+		FirstOrCreate(&Translation{}).Error
+}
+
+// DeleteTranslation delete translation into DB backend
+func (backend *Backend) DeleteTranslation(t *i18n.Translation) error {
+	return backend.DB.Where(Translation{Key: t.Key, Locale: t.Locale}).Delete(&Translation{}).Error
+}
